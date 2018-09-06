@@ -5,11 +5,10 @@ COL_COUNT = 3
 
 class GameState(object):
 
-    parent = None
+    children = []
     endGameStatus = False
     winner = '-'
-    factor = ''
-    child_factor = []
+    factor = None
     def __init__(self, gameMatrix, parent, currentPlayer):
         self.gameMatrix = gameMatrix   #Inicializa
         self.parent = parent
@@ -27,55 +26,59 @@ def printGameState(gameState):
             print(gameState.gameMatrix[x][y]+'   ', end="")
         print('\n')
 
+def isItMax(gameState):
+	if(gameState.currentPlayer == 'X'):
+		return True
+	else:
+		return False
 
+def setEndGameConditions(gameState, velha):
+	gameState.endGameStatus = True
+	if velha is False:
+		# O player vencedor foi anterior, então alterna-se para o outro em relação ao atual
+		gameState.winner = switchPlayer(gameState)
+	else: 
+		gameState.winner = '#'
 
 def verifyWinCondition(gameState):
     #Vitoria em linha
     for x in range(ROW_COUNT):
         if(gameState.gameMatrix[x][0] == gameState.gameMatrix[x][1] and gameState.gameMatrix[x][1] == gameState.gameMatrix[x][2] and gameState.gameMatrix[x][0] != '-'):
-            gameState.endGameStatus = True
-            gameState.winner = switchPlayer(gameState) 
+            setEndGameConditions(gameState, False)
     #Vitoria em coluna
-    for y in range(ROW_COUNT):
-        if (gameState.gameMatrix[0][x] == gameState.gameMatrix[1][x] and gameState.gameMatrix[1][x] == gameState.gameMatrix[2][x] and gameState.gameMatrix[0][x] != '-'):
-            gameState.endGameStatus = True
-            gameState.winner = switchPlayer(gameState) 
+    for y in range(COL_COUNT):
+        if (gameState.gameMatrix[0][y] == gameState.gameMatrix[1][y] and gameState.gameMatrix[1][y] == gameState.gameMatrix[2][y] and gameState.gameMatrix[0][y] != '-'):
+            setEndGameConditions(gameState, False)
     #Vitoria em diagonal
     if (gameState.gameMatrix[0][0] == gameState.gameMatrix[1][1] and gameState.gameMatrix[1][1] == gameState.gameMatrix[2][2] and gameState.gameMatrix[1][1] != '-'):
-        gameState.endGameStatus = True
-        gameState.winner = switchPlayer(gameState) 
+        setEndGameConditions(gameState, False)
     if (gameState.gameMatrix[0][2] == gameState.gameMatrix[1][1] and gameState.gameMatrix[1][1] == gameState.gameMatrix[2][0] and gameState.gameMatrix[1][1] != '-'):
-        gameState.endGameStatus = True
-        gameState.winner = switchPlayer(gameState)
+        setEndGameConditions(gameState, False)
 
-    #Verifica se deu Velha
-    count = 0
-    for x in range(ROW_COUNT):
-        for y in range (COL_COUNT):
-            if gameState.gameMatrix[x][y] == '-':
-                count += 1;
+    #Verifica se deu velha, se ainda não houver vencedor	
+    if gameState.endGameStatus is False:
+	    count = 0
+	    for x in range(ROW_COUNT):
+	        for y in range (COL_COUNT):
+	            if gameState.gameMatrix[x][y] == '-':
+	                count += 1;
 
-    if (count == 0 and gameState.winner == '-'): #tabuleiro completo
-        gameState.endGameStatus = True;
-        gameState.winner = '#' # Deu velha
+	    if (count == 0 and gameState.winner == '-'): #tabuleiro completo
+	        setEndGameConditions(gameState, True) # Deu velha
 
-
-
-
-
-def setFactor(state):
+def setFactorEndGame(state):
 
     #Coloca o valor para os Nos finais
     if(state.endGameStatus == True):
-        if(state.winner == 'X' and state.factor == ''):
+        if(state.winner == 'X'):
             state.factor = 1
-            state.parent.child_factor.append(1)
-        elif state.winner == '#' and state.factor == '': 
+            #state.parent.child_factor.append(1)
+        elif state.winner == '#': 
             state.factor = 0
-            state.parent.child_factor.append(0)
+            #state.parent.child_factor.append(0)
         else:
             state.factor = -1
-            state.parent.child_factor.append(1)
+            #state.parent.child_factor.append(1)
 
 #Tentativa de colocar fator nos pais            
 '''
@@ -116,8 +119,14 @@ def setFactor(state):
             
 '''
 
-
-            
+def setParentsFactor(gameState):
+	if gameState.parent is not None:	#Com exceção do no inicial
+		if gameState.parent.factor is None:	# Primeiro nó filho recebe primeiro fator
+			gameState.parent.factor = gameState.factor
+		elif isItMax(gameState.parent) is True and gameState.factor > gameState.parent.factor:	#Maximize
+			gameState.parent.factor = gameState.factor
+		elif isItMax(gameState.parent) is False and gameState.factor < gameState.parent.factor:	#Minimize
+			gameState.parent.factor = gameState.factor
 
 def generateGameStates(currentGame):
     for x in range(ROW_COUNT):
@@ -131,11 +140,16 @@ def generateGameStates(currentGame):
                 newGameState = GameState(auxMatrix, currentGame, switchPlayer(currentGame))
                 # Adiciona novo estado a lista de todos os estados
                 allGameStates.append(newGameState)
+                # Adiciona novo estado a lista de filhos do no pai
+                currentGame.children.append(newGameState)
                 #Verifica se o estado gerado sera um estado terminal (alguem venceu)
                 verifyWinCondition(newGameState)
                 #Faz recusrao para gerar novos estados de jogo a partir desse novo estado criado, se ele nao for terminal
                 if newGameState.endGameStatus is False:
                     generateGameStates(newGameState)
+                else:
+                	setFactorEndGame(newGameState)
+                setParentsFactor(newGameState)
 
 
 matrixStandard = [['-' for x in range(ROW_COUNT)] for y in range(COL_COUNT)] #Cria matriz base do jogo da velha
@@ -144,14 +158,14 @@ initialGame = GameState(matrixStandard, None, 'X') #Instancia estado inicial do 
 allGameStates.append(initialGame)   #Adiciona estado inicial a lista de estados gerados
 generateGameStates(initialGame) #Inicia processo de gerar estados subsequentes
 
-for state in allGameStates:
-    setFactor(state)
+#for state in allGameStates:
+#    setFactor(state)
 
 #Imprime nos terminais (que alguem venceu, nao implementei pra verificar velha)
 for state in allGameStates:
-    if state.endGameStatus is True:
-        printGameState(state)
-        
-        print(state.factor)
-        print('---------------------')
+    #if state.endGameStatus is True:
+    printGameState(state)
+    print(state.winner)
+    print(state.factor)
+    print('---------------------')
 
