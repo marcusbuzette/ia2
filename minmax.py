@@ -1,11 +1,11 @@
 from copy import copy, deepcopy
+import random
 
 ROW_COUNT = 3
 COL_COUNT = 3
 
 class GameState(object):
 
-    children = []
     endGameStatus = False
     winner = '-'
     factor = None
@@ -13,9 +13,13 @@ class GameState(object):
         self.gameMatrix = gameMatrix   #Inicializa
         self.parent = parent
         self.currentPlayer = currentPlayer
+        self.children = []
 
-def switchPlayer(gameState):
-    if gameState.currentPlayer == 'X':
+    def addChild(self, newChild):
+        self.children.append(newChild)
+
+def switchPlayer(currentPlayer):
+    if currentPlayer == 'X':
         return 'O'
     else:
         return 'X'
@@ -23,8 +27,8 @@ def switchPlayer(gameState):
 def printGameState(gameState):
     for x in range(ROW_COUNT):
         for y in range(COL_COUNT):
-            print(gameState.gameMatrix[x][y]+'   ', end="")
-        print('\n')
+            print(gameState.gameMatrix[x][y], end="")
+        print()
 
 def isItMax(gameState):
 	if(gameState.currentPlayer == 'X'):
@@ -36,7 +40,7 @@ def setEndGameConditions(gameState, velha):
 	gameState.endGameStatus = True
 	if velha is False:
 		# O player vencedor foi anterior, então alterna-se para o outro em relação ao atual
-		gameState.winner = switchPlayer(gameState)
+		gameState.winner = switchPlayer(gameState.currentPlayer)
 	else: 
 		gameState.winner = '#'
 
@@ -72,52 +76,10 @@ def setFactorEndGame(state):
     if(state.endGameStatus == True):
         if(state.winner == 'X'):
             state.factor = 1
-            #state.parent.child_factor.append(1)
         elif state.winner == '#': 
             state.factor = 0
-            #state.parent.child_factor.append(0)
         else:
             state.factor = -1
-            #state.parent.child_factor.append(1)
-
-#Tentativa de colocar fator nos pais            
-'''
-    else: #Se nao for um no final
-        if state.currentPlayer == '0': # Se for o MIN
-            for x in range(len(state.child_factor)):
-                if(state.child_factor[x] == -1 and state.factor == ''):
-                    state.factor = -1;
-                    break;
-
-            if(state.factor == ''):
-                for x in range(len(state.child_factor)):
-                    if(state.child_factor[x] == 0 and state.factor == ''):
-                        state.factor = 0;
-                        break;
-            if(state.factor == ''):
-                for x in range(len(state.child_factor)):
-                    if(state.child_factor[x] == 1 and state.factor == ''):
-                        state.factor = 1;
-                        break;
-        
-        else: # se for MAX
-            for x in range(len(state.child_factor)):
-                if(state.child_factor[x] == 1 and state.factor == ''):
-                    state.factor = 1;
-                    break;
-
-            if(state.factor == ''):
-                for x in range(len(state.child_factor)):
-                    if(state.child_factor[x] == 0 and state.factor == ''):
-                        state.factor = 0;
-                        break;
-            if(state.factor == ''):
-                for x in range(len(state.child_factor)):
-                    if(state.child_factor[x] == -1 and state.factor == ''):
-                        state.factor = -1;
-                        break;
-            
-'''
 
 def setParentsFactor(gameState):
 	if gameState.parent is not None:	#Com exceção do no inicial
@@ -137,35 +99,103 @@ def generateGameStates(currentGame):
                 #Marca na matriz auxiliar a posicao de "escolha" do jogador atual
                 auxMatrix[x][y] = currentGame.currentPlayer
                 # Gera proximo estado com a nova matriz da velha, referenciando o estado anterior e alternando para o proximo jogador
-                newGameState = GameState(auxMatrix, currentGame, switchPlayer(currentGame))
-                # Adiciona novo estado a lista de todos os estados
-                allGameStates.append(newGameState)
+                newGameState = GameState(auxMatrix, currentGame, switchPlayer(currentGame.currentPlayer))
                 # Adiciona novo estado a lista de filhos do no pai
-                currentGame.children.append(newGameState)
+                currentGame.addChild(newGameState)
                 #Verifica se o estado gerado sera um estado terminal (alguem venceu)
                 verifyWinCondition(newGameState)
                 #Faz recusrao para gerar novos estados de jogo a partir desse novo estado criado, se ele nao for terminal
                 if newGameState.endGameStatus is False:
                     generateGameStates(newGameState)
                 else:
-                	setFactorEndGame(newGameState)
+                    setFactorEndGame(newGameState)
+                    endGames.append(newGameState)
                 setParentsFactor(newGameState)
 
+def getPlayerChoice(currentState):
+    chosenRow, chosenCol = map(int, input('Escolha linha e coluna para X (0-2)(0-2): ').split())
+    while not (0 <= chosenRow <= 2 and 0 <= chosenCol <= 2 and currentState.gameMatrix[chosenRow][chosenCol] == '-'):
+        chosenRow, chosenCol = map(int, input('ERRO. Escolha linha e coluna para X (0-2)(0-2): ').split())
+    return chosenRow, chosenCol
 
+def startGame(currentState):
+    currentPlayer = 'X' #Quem inicia é o X, o humano
+    while currentState.endGameStatus is False:
+        countState = 0
+        if currentPlayer == 'X':    # Se for vez do humano (MAX)
+            print('**** Vez do X: ****')
+            printGameState(currentState)
+            chosenRow, chosenCol = getPlayerChoice(currentState)    # Recebe onde o usuário quer marcar o X
+            for possibleState in currentState.children: # Procura o próximo estado baseado na posição que o usuário decidiu marcar
+                if possibleState.gameMatrix[chosenRow][chosenCol] == 'X':
+                    currentState = possibleState
+                    break
+        else:
+            print('**** Vez do O (BOT): ****')    # Se for vez do BOT (MIN)
+            printGameState(currentState)
+            lowestFactor = None
+            lowestChildren = []
+            print('**** Opções e respectivos fatores: ****') # Verifica melhores opções de MIN para o BOT
+            for possibleState in currentState.children:
+                print('** Opção %s **' % countState)
+                printGameState(possibleState)
+                print("Fator MINIMAX: "+str(possibleState.factor))
+                print()
+                countState += 1
+                if lowestFactor is None:    # Primeiro estado é o parametro inicial de MIN
+                    lowestFactor = possibleState.factor
+                    lowestChildren.append(possibleState)
+                elif possibleState.factor < lowestFactor:   # Se encontrar um estado com MIN melhor, limpa lista de possiveis escolhas e atualiza o fator de MIN
+                    lowestFactor = possibleState.factor
+                    lowestChildren.clear()
+                    lowestChildren.append(possibleState)
+                elif possibleState.factor == lowestFactor:  # Se encontrar um estado com MIN igual, adiciona ele a lista de opções
+                    lowestChildren.append(possibleState)
+
+            currentState = random.choice(lowestChildren)    # Escolha um estado aleatório dentro da lista de MIN estados
+        currentPlayer = switchPlayer(currentPlayer)
+
+    print('\n**** FIM DE JOGO ****\n')
+    if(currentState.winner != '#'):
+        print('O jogador ' + currentState.winner + ' venceu!')
+    else:
+        print('Velha!')
+
+    printGameState(currentState)
+
+endGames = []
 matrixStandard = [['-' for x in range(ROW_COUNT)] for y in range(COL_COUNT)] #Cria matriz base do jogo da velha
-allGameStates = []              #Lista que armazena TODOS os estados gerados
 initialGame = GameState(matrixStandard, None, 'X') #Instancia estado inicial do jogo
-allGameStates.append(initialGame)   #Adiciona estado inicial a lista de estados gerados
+print('Gerando todos os estados possíveis e aplicando MINIMAX')
 generateGameStates(initialGame) #Inicia processo de gerar estados subsequentes
+print('Iniciando jogo')
+startGame(initialGame)
+while str(input('\nReiniciar jogo (S para continuar)? ')) == 'S':
+    startGame(initialGame)
 
-#for state in allGameStates:
-#    setFactor(state)
+'''
+# Verifica probabilidade de vitória para cada jogador e velha
+countWinX = 0
+countWinO = 0
+countVelha = 0
+for game in endGames:
+    if game.winner == 'X':
+        countWinX+=1
+    elif game.winner == 'O':
+        countWinO+=1
+    else:
+        countVelha+=1
+print('Probabilidade de vitória do X: %s' % (countWinX/(countWinX+countWinO+countVelha)))
+print('Probabilidade de vitória do O: %s' % (countWinO/(countWinX+countWinO+countVelha)))
+print('Probabilidade de velha: %s' % (countVelha/(countWinX+countWinO+countVelha)))
+'''
 
-#Imprime nos terminais (que alguem venceu, nao implementei pra verificar velha)
-for state in allGameStates:
-    #if state.endGameStatus is True:
+'''#Imprime nos
+for state in initialGame.children:
     printGameState(state)
     print(state.winner)
     print(state.factor)
-    print('---------------------')
+    print('---------------------')'''
+
+
 
